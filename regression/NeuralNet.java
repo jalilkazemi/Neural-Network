@@ -91,9 +91,8 @@ public class NeuralNet implements Regression<NNParameters, NNEstimate> {
 		this.xCrossValid = xCrossValid;
 	}
 
-	public void setOptimPars(int maxiter, double alpha) {
+	public void setOptimPars(int maxiter) {
 		this.MAXITER = maxiter;
-		this.ALPHA = alpha;
 	}
 
 	public void setParameters(NNParameters pars) {
@@ -161,24 +160,46 @@ public class NeuralNet implements Regression<NNParameters, NNEstimate> {
 		NNEstimate bestEstimate = estimate.clone();
 		double bestCrossValidCost = crossValidCost;		
 		double swap;
+		ALPHA = 1e-10;
+		boolean ascending = true;
 		for (int i = 0; i < MAXITER; i++) {
+			if(ascending) {
+				ALPHA *= 10;
+			}
+			System.out.println("ALPHA = " + ALPHA);
 			System.out.println("Cost of epoch\t" + i + "\t= " + trainCost);
 			System.out.println("Evaluating the hypothesis ...");
 			System.out.println("Cost on cross-validation set: " + crossValidCost);				
 			System.out.println();
+			NNEstimate backup = estimate.clone();
 			for (int example = 0; example < mTrain; example++) {
 				update(intermediate, estimate, example, example + 1);
 			}
-			swap = trainCost;
-			trainCost = trainCost(intermediate, estimate, 0, mTrain);
-			crossValidCost = crossValidCost(intermediate, estimate, 0, mCrossValid);
-			if(crossValidCost < bestCrossValidCost) {
-				bestEstimate = estimate.clone();
-				bestCrossValidCost = crossValidCost;
-			}
-			if(Math.abs(trainCost - swap) < THRESHOLD * (trainCost + THRESHOLD)) {
-				System.out.println("Threshold has reached.");
-				break;
+			double maxTheta = 0;
+
+			for (int l = 0; l < nlayer; l++)
+				for (int r = 0; r < intermediate.nrow[l]; r++)
+					for (int c = 0; c < intermediate.ncol[l]; c++)
+						if(maxTheta < Math.abs(estimate.theta[l][r][c]))
+							maxTheta = Math.abs(estimate.theta[l][r][c]);
+			if (maxTheta == 0) {
+				estimate = backup;
+				ascending = false;
+				ALPHA /= 3;
+			} else {
+				swap = trainCost;
+				trainCost = trainCost(intermediate, estimate, 0, mTrain);
+				if(trainCost > swap)
+					ALPHA /= 3;
+				crossValidCost = crossValidCost(intermediate, estimate, 0, mCrossValid);
+				// if(crossValidCost < bestCrossValidCost) {
+				// 	bestEstimate = estimate.clone();
+				// 	bestCrossValidCost = crossValidCost;
+				// }
+				if(Math.abs(trainCost - swap) < THRESHOLD * (trainCost + THRESHOLD)) {
+					System.out.println("Threshold has reached.");
+					break;
+				}				
 			}
 		}	
 		//return bestEstimate;		
